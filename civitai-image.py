@@ -42,7 +42,7 @@ for image in tqdm(filtered_images, desc="Saving images and metadata", unit="imag
     # Save meta.prompt as a text file
     meta_prompt = image_meta['prompt']
     meta_filename = f"{image_id}.txt"
-    with open(meta_filename, "w") as meta_file:
+    with open(meta_filename, "w", encoding='utf-8') as meta_file:
         meta_file.write(meta_prompt)
 
     total_saved += 1
