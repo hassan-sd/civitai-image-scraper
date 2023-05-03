@@ -1,3 +1,5 @@
+* Patreon: https://www.patreon.com/sd_hassan
+
 # civitai-image-scraper
 Downloads bulk images from Civitai that have a reaction count for a specific emoji reaction greater than your variable
 Filters images in the response to only those that include a Prompt, saves the prompt as a caption text file matching the image name.
