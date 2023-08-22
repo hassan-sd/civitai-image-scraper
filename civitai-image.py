@@ -1,79 +1,89 @@
 import requests
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from io import BytesIO
 import os
 import re
 from tqdm import tqdm
 
-# User inputs
-min_width = int(input("Enter the minimum width for images (in pixels): "))
-min_height = int(input("Enter the minimum height for images (in pixels): "))
-save_location = input("Enter the location to save the images and metadata: ")
-max_images = int(input("Enter the maximum number of images to download: "))
-only_nsfw = input("Do you want to download only NSFW images? (yes/no): ").lower() == "yes"
-
-# Ensure the directory exists
-if not os.path.exists(save_location):
-    os.makedirs(save_location)
-
-# Replace with your API key
-api_key = "xxx"
-# API endpoint
-url = "https://civitai.com/api/v1/images"
+# Configuration
+api_key = "xxxx"
 headers = {"Authorization": f"Bearer {api_key}"}
+initial_url = "https://civitai.com/api/v1/images"
+download_path = input("Enter the path where you want to save the images: ")
+min_width = int(input("Enter minimum width of the image: "))
+min_height = int(input("Enter minimum height of the image: "))
+max_images = int(input("Enter the maximum number of images you want to download: "))
+nsfw_only = input("Do you want to download only NSFW images? (yes/no): ").strip().lower() == 'yes'
+if nsfw_only:
+    initial_url += "?nsfw=true"
 
-current_page = 1
-page_size = 100  # assuming this, adjust based on the API's actual page size
-total_downloaded = 0
-api_params = {}
-if only_nsfw:
-    api_params["nsfw"] = "true"
-while total_downloaded < max_images:
-    # Modify the API request to include the current page
-    response = requests.get(url, headers=headers, params={**api_params, "page": current_page})
-    response_data = response.json()
+# Ensure directory exists
+if not os.path.exists(download_path):
+    os.makedirs(download_path)
 
-    # If there are no items in the response, break out of the loop
-    if not response_data['items']:
-        break
+# Regex to clean up prompt text
+tag_re = re.compile(r'<.*?>')
 
-    # Filter images
-    filtered_images = [image for image in response_data['items'] if image['stats']['heartCount'] > 10 and image['meta'] is not None and 'prompt' in image['meta'] and image['meta']['prompt']]
+downloaded_urls = set()
+if os.path.exists("downloaded_urls.log"):
+    with open("downloaded_urls.log", "r") as log_file:
+        downloaded_urls = set(log_file.readlines())
 
-    for image in tqdm(filtered_images, desc=f"Saving images and metadata (Page {current_page})", unit="image"):
-        # If total_downloaded reaches or exceeds max_images, stop processing
-        if total_downloaded >= max_images:
-            break
+with open("downloaded_urls.log", "a") as log_file:
 
-        image_id = image['id']
-        image_url = image['url']
-        image_meta = image['meta']
+    next_url = initial_url
+    total_saved = 0
 
-        # Download image
-        image_response = requests.get(image_url)
-        img = Image.open(BytesIO(image_response.content))
+    while next_url and total_saved < max_images:
+        response = requests.get(next_url, headers=headers)
+        response_data = response.json()
 
-        # Check size and skip if below requirements
-        if img.size[0] < min_width or img.size[1] < min_height:
-            continue
+        if 'metadata' in response_data and 'nextPage' in response_data['metadata']:
+            next_url = response_data['metadata']['nextPage']
+        else:
+            next_url = None
 
-        # Convert to RGB if necessary
-        if img.mode == 'RGBA':
-            img = img.convert('RGB')
+        filtered_images = [image for image in response_data['items'] if 
+                           image['stats']['heartCount'] > 10 and 
+                           image['meta'] and 'prompt' in image['meta'] and
+                           image['width'] >= min_width and 
+                           image['height'] >= min_height and
+                           image['url'] not in downloaded_urls]
 
-        # Save image to the specified location
-        img_filename = os.path.join(save_location, f"{image_id}.jpg")
-        img.save(img_filename)
+        for image in tqdm(filtered_images, desc="Saving images and metadata", unit="image"):
+            image_url = image['url']
+            if image_url in downloaded_urls:
+                continue
 
-        # Remove content inside tags and save meta.prompt
-        cleaned_meta_prompt = re.sub(r'<[^>]+>', '', image_meta['prompt'])
-        meta_filename = os.path.join(save_location, f"{image_id}.txt")
-        with open(meta_filename, "w") as meta_file:
-            meta_file.write(cleaned_meta_prompt)
+            # Download image
+            try:
+                image_response = requests.get(image_url)
+                img = Image.open(BytesIO(image_response.content))
+                
+                # Convert image to RGB if necessary
+                if img.mode == 'RGBA':
+                    img = img.convert('RGB')
 
-        total_downloaded += 1
+                image_id = image['id']
 
-    # Go to the next page
-    current_page += 1
+                # Save image
+                img_filename = os.path.join(download_path, f"{image_id}.jpg")
+                img.save(img_filename)
 
-print(f"Downloaded and saved {total_downloaded} images and metadata files to {save_location}.")
+                # Save meta.prompt as a text file after cleaning
+                meta_prompt = tag_re.sub('', image['meta']['prompt'])
+                meta_filename = os.path.join(download_path, f"{image_id}.txt")
+                with open(meta_filename, "w") as meta_file:
+                    meta_file.write(meta_prompt)
+
+                log_file.write(image_url + "\n")
+                downloaded_urls.add(image_url)
+                total_saved += 1
+
+                if total_saved >= max_images:
+                    break
+
+            except UnidentifiedImageError:
+                print(f"Failed to identify the image from URL: {image_url}")
+
+print(f"Downloaded and saved {total_saved} images and metadata files.")
