@@ -10,13 +10,14 @@ min_width = int(input("Enter the minimum width for images (in pixels): "))
 min_height = int(input("Enter the minimum height for images (in pixels): "))
 save_location = input("Enter the location to save the images and metadata: ")
 max_images = int(input("Enter the maximum number of images to download: "))
+only_nsfw = input("Do you want to download only NSFW images? (yes/no): ").lower() == "yes"
 
 # Ensure the directory exists
 if not os.path.exists(save_location):
     os.makedirs(save_location)
 
 # Replace with your API key
-api_key = "xxxxx"
+api_key = "xxx"
 # API endpoint
 url = "https://civitai.com/api/v1/images"
 headers = {"Authorization": f"Bearer {api_key}"}
@@ -24,10 +25,12 @@ headers = {"Authorization": f"Bearer {api_key}"}
 current_page = 1
 page_size = 100  # assuming this, adjust based on the API's actual page size
 total_downloaded = 0
-
+api_params = {}
+if only_nsfw:
+    api_params["nsfw"] = "true"
 while total_downloaded < max_images:
     # Modify the API request to include the current page
-    response = requests.get(url + f"?page={current_page}", headers=headers)
+    response = requests.get(url, headers=headers, params={**api_params, "page": current_page})
     response_data = response.json()
 
     # If there are no items in the response, break out of the loop
