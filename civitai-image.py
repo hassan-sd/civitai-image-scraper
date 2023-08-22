@@ -6,7 +6,7 @@ import re
 from tqdm import tqdm
 
 # Configuration
-api_key = "xxxx"
+api_key = "xx"
 headers = {"Authorization": f"Bearer {api_key}"}
 initial_url = "https://civitai.com/api/v1/images"
 download_path = input("Enter the path where you want to save the images: ")
@@ -73,7 +73,7 @@ with open("downloaded_urls.log", "a") as log_file:
                 # Save meta.prompt as a text file after cleaning
                 meta_prompt = tag_re.sub('', image['meta']['prompt'])
                 meta_filename = os.path.join(download_path, f"{image_id}.txt")
-                with open(meta_filename, "w") as meta_file:
+                with open(meta_filename, "w", encoding='utf-8') as meta_file:
                     meta_file.write(meta_prompt)
 
                 log_file.write(image_url + "\n")
