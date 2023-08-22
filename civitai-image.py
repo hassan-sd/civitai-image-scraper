@@ -6,7 +6,7 @@ import re
 from tqdm import tqdm
 
 # Configuration
-api_key = "xx"
+api_key = "xxx"
 headers = {"Authorization": f"Bearer {api_key}"}
 initial_url = "https://civitai.com/api/v1/images"
 download_path = input("Enter the path where you want to save the images: ")
@@ -61,7 +61,7 @@ with open("downloaded_urls.log", "a") as log_file:
                 img = Image.open(BytesIO(image_response.content))
                 
                 # Convert image to RGB if necessary
-                if img.mode == 'RGBA':
+                if img.mode in ['RGBA', 'P']:
                     img = img.convert('RGB')
 
                 image_id = image['id']
