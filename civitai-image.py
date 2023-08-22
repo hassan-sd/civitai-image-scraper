@@ -2,63 +2,75 @@ import requests
 from PIL import Image
 from io import BytesIO
 import os
-import re  # Added this import for regex functionality
+import re
 from tqdm import tqdm
 
-# User input for minimum width, height, and save location
+# User inputs
 min_width = int(input("Enter the minimum width for images (in pixels): "))
 min_height = int(input("Enter the minimum height for images (in pixels): "))
 save_location = input("Enter the location to save the images and metadata: ")
+max_images = int(input("Enter the maximum number of images to download: "))
 
 # Ensure the directory exists
 if not os.path.exists(save_location):
     os.makedirs(save_location)
 
 # Replace with your API key
-api_key = "xxxxxx"
-
+api_key = "xxxxx"
 # API endpoint
 url = "https://civitai.com/api/v1/images"
 headers = {"Authorization": f"Bearer {api_key}"}
 
-# Make API request
-response = requests.get(url, headers=headers)
-response_data = response.json()
+current_page = 1
+page_size = 100  # assuming this, adjust based on the API's actual page size
+total_downloaded = 0
 
-# Filter images with stats.heartCount greater than 10 and a non-empty meta.prompt
-filtered_images = [image for image in response_data['items'] if image['stats']['heartCount'] > 10 and image['meta'] is not None and 'prompt' in image['meta'] and image['meta']['prompt']]
+while total_downloaded < max_images:
+    # Modify the API request to include the current page
+    response = requests.get(url + f"?page={current_page}", headers=headers)
+    response_data = response.json()
 
-# Download and save filtered images and metadata
-total_saved = 0
-for image in tqdm(filtered_images, desc="Saving images and metadata", unit="image"):
-    image_id = image['id']
-    image_url = image['url']
-    image_meta = image['meta']
+    # If there are no items in the response, break out of the loop
+    if not response_data['items']:
+        break
 
-    # Download image
-    image_response = requests.get(image_url)
-    img = Image.open(BytesIO(image_response.content))
+    # Filter images
+    filtered_images = [image for image in response_data['items'] if image['stats']['heartCount'] > 10 and image['meta'] is not None and 'prompt' in image['meta'] and image['meta']['prompt']]
 
-    # Check if image width or height meets the requirement
-    if img.size[0] < min_width or img.size[1] < min_height:
-        continue  # skip this image
+    for image in tqdm(filtered_images, desc=f"Saving images and metadata (Page {current_page})", unit="image"):
+        # If total_downloaded reaches or exceeds max_images, stop processing
+        if total_downloaded >= max_images:
+            break
 
-    # Convert image to RGB if necessary
-    if img.mode == 'RGBA':
-        img = img.convert('RGB')
+        image_id = image['id']
+        image_url = image['url']
+        image_meta = image['meta']
 
-    # Save image to the specified location
-    img_filename = os.path.join(save_location, f"{image_id}.jpg")
-    img.save(img_filename)
+        # Download image
+        image_response = requests.get(image_url)
+        img = Image.open(BytesIO(image_response.content))
 
-    # Remove words inside tags from meta.prompt
-    cleaned_meta_prompt = re.sub(r'<[^>]+>', '', image_meta['prompt'])
+        # Check size and skip if below requirements
+        if img.size[0] < min_width or img.size[1] < min_height:
+            continue
 
-    # Save the cleaned meta.prompt as a text file to the specified location
-    meta_filename = os.path.join(save_location, f"{image_id}.txt")
-    with open(meta_filename, "w") as meta_file:
-        meta_file.write(cleaned_meta_prompt)
+        # Convert to RGB if necessary
+        if img.mode == 'RGBA':
+            img = img.convert('RGB')
 
-    total_saved += 1
+        # Save image to the specified location
+        img_filename = os.path.join(save_location, f"{image_id}.jpg")
+        img.save(img_filename)
 
-print(f"Downloaded and saved {total_saved}/{len(filtered_images)} images and metadata files to {save_location}.")
+        # Remove content inside tags and save meta.prompt
+        cleaned_meta_prompt = re.sub(r'<[^>]+>', '', image_meta['prompt'])
+        meta_filename = os.path.join(save_location, f"{image_id}.txt")
+        with open(meta_filename, "w") as meta_file:
+            meta_file.write(cleaned_meta_prompt)
+
+        total_downloaded += 1
+
+    # Go to the next page
+    current_page += 1
+
+print(f"Downloaded and saved {total_downloaded} images and metadata files to {save_location}.")
