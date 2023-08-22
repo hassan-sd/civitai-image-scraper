@@ -2,6 +2,7 @@ import requests
 from PIL import Image
 from io import BytesIO
 import os
+import re  # Added this import for regex functionality
 from tqdm import tqdm
 
 # User input for minimum width, height, and save location
@@ -14,7 +15,7 @@ if not os.path.exists(save_location):
     os.makedirs(save_location)
 
 # Replace with your API key
-api_key = "xxxxxxxx"
+api_key = "xxxxxx"
 
 # API endpoint
 url = "https://civitai.com/api/v1/images"
@@ -50,11 +51,13 @@ for image in tqdm(filtered_images, desc="Saving images and metadata", unit="imag
     img_filename = os.path.join(save_location, f"{image_id}.jpg")
     img.save(img_filename)
 
-    # Save meta.prompt as a text file to the specified location
-    meta_prompt = image_meta['prompt']
+    # Remove words inside tags from meta.prompt
+    cleaned_meta_prompt = re.sub(r'<[^>]+>', '', image_meta['prompt'])
+
+    # Save the cleaned meta.prompt as a text file to the specified location
     meta_filename = os.path.join(save_location, f"{image_id}.txt")
     with open(meta_filename, "w") as meta_file:
-        meta_file.write(meta_prompt)
+        meta_file.write(cleaned_meta_prompt)
 
     total_saved += 1
 
